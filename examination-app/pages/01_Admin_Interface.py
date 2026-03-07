@@ -13,22 +13,39 @@ from fpdf import FPDF
 st.set_page_config(page_title="Examination Admin", layout="wide")
 st.title("🛡️ Examination Admin Interface")
 
-# --- Get Admin Password from config file or use default ---
-ADMIN_CONFIG_FILE = "admin_config.txt"
+# --- Per-Institution Password Management ---
+ADMIN_PASSWORDS_FILE = "admin_passwords.json"
 
-def get_admin_password():
-    """Load admin password from config file, or return default."""
-    if os.path.isfile(ADMIN_CONFIG_FILE):
-        with open(ADMIN_CONFIG_FILE) as f:
-            content = f.read().strip()
-            if content:
-                return content
-    return "admin123"  # Default password if file doesn't exist
+def load_admin_passwords():
+    """Load all institution passwords from JSON file."""
+    if os.path.isfile(ADMIN_PASSWORDS_FILE):
+        try:
+            with open(ADMIN_PASSWORDS_FILE) as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
 
-def set_admin_password(password):
-    """Save admin password to config file."""
-    with open(ADMIN_CONFIG_FILE, "w") as f:
-        f.write(password)
+def save_admin_passwords(passwords_dict):
+    """Save all institution passwords to JSON file."""
+    with open(ADMIN_PASSWORDS_FILE, "w") as f:
+        json.dump(passwords_dict, f, indent=4)
+
+def get_admin_password(institution_code):
+    """Get password for a specific institution. Return default if new institution."""
+    passwords = load_admin_passwords()
+    return passwords.get(institution_code, "admin123")
+
+def is_institution_exists(institution_code):
+    """Check if institution code has been registered."""
+    passwords = load_admin_passwords()
+    return institution_code in passwords
+
+def set_admin_password(institution_code, password):
+    """Save password for a specific institution."""
+    passwords = load_admin_passwords()
+    passwords[institution_code] = password
+    save_admin_passwords(passwords)
 
 # --- Centered Login Form ---
 if "admin_logged_in" not in st.session_state or not st.session_state["admin_logged_in"]:
@@ -47,27 +64,53 @@ if "admin_logged_in" not in st.session_state or not st.session_state["admin_logg
                 st.error("❌ Please enter Institution Code")
             elif not admin_password:
                 st.error("❌ Please enter Admin Password")
-            elif admin_password != get_admin_password():
-                st.error("❌ Invalid Admin Password")
             else:
-                st.session_state["admin_logged_in"] = True
-                st.session_state["institution_code"] = institution_code
-                with open("current_institution.txt", "w") as f:
-                    f.write(st.session_state["institution_code"])
-                st.success("✅ Login successful!")
-                st.rerun()
+                institution_code_clean = institution_code.strip()
+                
+                if is_institution_exists(institution_code_clean):
+                    # Existing institution - check password
+                    if admin_password != get_admin_password(institution_code_clean):
+                        st.error("❌ Invalid Admin Password")
+                    else:
+                        st.session_state["admin_logged_in"] = True
+                        st.session_state["institution_code"] = institution_code_clean
+                        with open("current_institution.txt", "w") as f:
+                            f.write(institution_code_clean)
+                        st.success("✅ Login successful!")
+                        st.rerun()
+                else:
+                    # New institution - create with default password
+                    if admin_password == "admin123":
+                        set_admin_password(institution_code_clean, "admin123")
+                        st.session_state["admin_logged_in"] = True
+                        st.session_state["institution_code"] = institution_code_clean
+                        with open("current_institution.txt", "w") as f:
+                            f.write(institution_code_clean)
+                        st.success("✅ New institution created! Login successful!")
+                        st.info("ℹ️ Default password 'admin123' is active. Please change it in the settings.")
+                        st.rerun()
+                    else:
+                        st.error("❌ Invalid Admin Password. For new institution, use default password: admin123")
     
     # Show password reset option
     st.markdown("---")
     with st.expander("🔑 Change Admin Password"):
+        st.write("**Change password for your institution code:**")
+        change_inst_code = st.text_input("Institution Code", key="change_inst_code")
         current_pass = st.text_input("Current Password", type="password", key="current_pass")
         new_pass = st.text_input("New Password", type="password", key="new_pass")
         confirm_pass = st.text_input("Confirm New Password", type="password", key="confirm_pass")
         
         if st.button("Update Password"):
-            if not current_pass:
+            change_inst_code = change_inst_code.strip()
+            
+            if not change_inst_code:
+                st.error("Enter your Institution Code")
+            elif not is_institution_exists(change_inst_code):
+                st.error(f"Institution code '{change_inst_code}' not found. Please login first to register.")
+            elif not current_pass:
                 st.error("Enter current password")
-            elif current_pass != get_admin_password():
+            elif current_pass != get_admin_password(change_inst_code):
                 st.error("Current password is incorrect")
             elif not new_pass or not confirm_pass:
                 st.error("Enter new password in both fields")
@@ -76,8 +119,8 @@ if "admin_logged_in" not in st.session_state or not st.session_state["admin_logg
             elif len(new_pass) < 6:
                 st.error("Password must be at least 6 characters")
             else:
-                set_admin_password(new_pass)
-                st.success("✅ Password updated successfully!")
+                set_admin_password(change_inst_code, new_pass)
+                st.success(f"✅ Password updated successfully for institution '{change_inst_code}'!")
     
     st.stop()
 else:
