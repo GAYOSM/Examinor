@@ -13,20 +13,72 @@ from fpdf import FPDF
 st.set_page_config(page_title="Examination Admin", layout="wide")
 st.title("🛡️ Examination Admin Interface")
 
+# --- Get Admin Password from config file or use default ---
+ADMIN_CONFIG_FILE = "admin_config.txt"
+
+def get_admin_password():
+    """Load admin password from config file, or return default."""
+    if os.path.isfile(ADMIN_CONFIG_FILE):
+        with open(ADMIN_CONFIG_FILE) as f:
+            content = f.read().strip()
+            if content:
+                return content
+    return "admin123"  # Default password if file doesn't exist
+
+def set_admin_password(password):
+    """Save admin password to config file."""
+    with open(ADMIN_CONFIG_FILE, "w") as f:
+        f.write(password)
+
 # --- Centered Login Form ---
-if "institution_code" not in st.session_state or not st.session_state["institution_code"]:
+if "admin_logged_in" not in st.session_state or not st.session_state["admin_logged_in"]:
     st.write("")
     st.write("")
-    st.header("Admin Login")
-    st.write("Enter your Institution Code to access the admin dashboard.")
+    st.header("🔐 Admin Login")
+    st.write("Enter your credentials to access the admin dashboard.")
+    
     with st.form("institution_login"):
         institution_code = st.text_input("Institution Code")
+        admin_password = st.text_input("Admin Password", type="password")
         submitted = st.form_submit_button("Login")
-        if submitted and institution_code:
-            st.session_state["institution_code"] = institution_code
-            with open("current_institution.txt", "w") as f:
-                f.write(st.session_state["institution_code"])
-            st.rerun()
+        
+        if submitted:
+            if not institution_code:
+                st.error("❌ Please enter Institution Code")
+            elif not admin_password:
+                st.error("❌ Please enter Admin Password")
+            elif admin_password != get_admin_password():
+                st.error("❌ Invalid Admin Password")
+            else:
+                st.session_state["admin_logged_in"] = True
+                st.session_state["institution_code"] = institution_code
+                with open("current_institution.txt", "w") as f:
+                    f.write(st.session_state["institution_code"])
+                st.success("✅ Login successful!")
+                st.rerun()
+    
+    # Show password reset option
+    st.markdown("---")
+    with st.expander("🔑 Change Admin Password"):
+        current_pass = st.text_input("Current Password", type="password", key="current_pass")
+        new_pass = st.text_input("New Password", type="password", key="new_pass")
+        confirm_pass = st.text_input("Confirm New Password", type="password", key="confirm_pass")
+        
+        if st.button("Update Password"):
+            if not current_pass:
+                st.error("Enter current password")
+            elif current_pass != get_admin_password():
+                st.error("Current password is incorrect")
+            elif not new_pass or not confirm_pass:
+                st.error("Enter new password in both fields")
+            elif new_pass != confirm_pass:
+                st.error("Passwords don't match")
+            elif len(new_pass) < 6:
+                st.error("Password must be at least 6 characters")
+            else:
+                set_admin_password(new_pass)
+                st.success("✅ Password updated successfully!")
+    
     st.stop()
 else:
     institution_code = st.session_state["institution_code"]
@@ -39,6 +91,7 @@ with col1:
         st.switch_page("pages/02_Student_Interface.py")
 with col2:
     if st.button("🚪 Logout"):
+        st.session_state["admin_logged_in"] = False
         st.session_state["institution_code"] = ""
         st.rerun()
 
