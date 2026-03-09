@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import sys
 import json
+from streamlit_autorefresh import st_autorefresh
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from deep_translator import GoogleTranslator
@@ -90,6 +91,9 @@ def display_questions(language_code):
 
     # --- Timer Display and Auto-Submit Logic ---
     if exam_start_time:
+        # schedule periodic rerun so timer updates and auto-submit triggers
+        st_autorefresh(interval=1 * 1000, key="student_timer_refresh")
+
         elapsed_time = datetime.now() - exam_start_time
         total_seconds = int(time_limit_minutes * 60)
         elapsed_seconds = int(elapsed_time.total_seconds())
