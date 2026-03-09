@@ -99,19 +99,21 @@ def display_questions(language_code):
         remaining_minutes = remaining_seconds // 60
         remaining_secs = remaining_seconds % 60
         
-        # Display timer at the top
-        timer_col1, timer_col2, timer_col3 = st.columns([2, 2, 1])
-        with timer_col1:
-            st.write("")  # Empty space
-        with timer_col2:
-            if remaining_seconds <= 300:  # 5 minutes or less - show in red
-                st.markdown(f"<h2 style='text-align: center; color: #FF4444;'>⏱️ Time Remaining: {remaining_minutes:02d}:{remaining_secs:02d}</h2>", unsafe_allow_html=True)
-            elif remaining_seconds <= 600:  # 10 minutes or less - show in orange
-                st.markdown(f"<h2 style='text-align: center; color: #FF8800;'>⏱️ Time Remaining: {remaining_minutes:02d}:{remaining_secs:02d}</h2>", unsafe_allow_html=True)
-            else:  # More than 10 minutes - show in green
-                st.markdown(f"<h2 style='text-align: center; color: #00AA00;'>⏱️ Time Remaining: {remaining_minutes:02d}:{remaining_secs:02d}</h2>", unsafe_allow_html=True)
-        with timer_col3:
-            st.write("")  # Empty space
+        # Display timer at the top using a placeholder
+        timer_placeholder = st.empty()
+        with timer_placeholder.container():
+            timer_col1, timer_col2, timer_col3 = st.columns([2, 2, 1])
+            with timer_col1:
+                st.write("")  # Empty space
+            with timer_col2:
+                if remaining_seconds <= 300:  # 5 minutes or less - show in red
+                    st.markdown(f"<h2 style='text-align: center; color: #FF4444;'>⏱️ Time Remaining: {remaining_minutes:02d}:{remaining_secs:02d}</h2>", unsafe_allow_html=True)
+                elif remaining_seconds <= 600:  # 10 minutes or less - show in orange
+                    st.markdown(f"<h2 style='text-align: center; color: #FF8800;'>⏱️ Time Remaining: {remaining_minutes:02d}:{remaining_secs:02d}</h2>", unsafe_allow_html=True)
+                else:  # More than 10 minutes - show in green
+                    st.markdown(f"<h2 style='text-align: center; color: #00AA00;'>⏱️ Time Remaining: {remaining_minutes:02d}:{remaining_secs:02d}</h2>", unsafe_allow_html=True)
+            with timer_col3:
+                st.write("")  # Empty space
         
         st.divider()
         
@@ -120,9 +122,6 @@ def display_questions(language_code):
             st.error("⏰ Time Limit Exceeded! Your exam will be auto-submitted now.")
             st.session_state.auto_submit = True
             st.rerun()
-        
-        # Rerun every second to update timer
-        st.markdown(f"<meta http-equiv='refresh' content='1'>", unsafe_allow_html=True)
 
     df = pd.read_csv(questions_file)
     questions = df["question"].tolist()
