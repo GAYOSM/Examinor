@@ -224,11 +224,31 @@ def display_questions(language_code):
             exam_start_time = saved_start_time
             st.info("📝 Resuming your previous exam session...")
         
-        # Restore saved answers to session state
+        # Restore saved answers to session state (translate back to student's language)
         saved_answers = partial_data.get("answers", {})
         for key, value in saved_answers.items():
             if key.startswith("answer_"):
-                st.session_state[key] = value
+                # Translate English answer back to student's language for display
+                if language_code != "en" and value.strip():
+                    try:
+                        # For multiple choice, find the translated option that maps to this English answer
+                        question_idx = int(key.split('_')[1])
+                        if question_idx < len(options_list) and pd.notna(options_list[question_idx]):
+                            original_options = json.loads(options_list[question_idx])
+                            translated_opts = translated_options_list[question_idx]
+                            option_map_reverse = dict(zip(original_options, translated_opts))
+                            if value in option_map_reverse:
+                                st.session_state[key] = option_map_reverse[value]
+                            else:
+                                st.session_state[key] = value
+                        else:
+                            # For text input, translate back to student's language
+                            translated_back = GoogleTranslator(source='en', target=language_code).translate(value)
+                            st.session_state[key] = translated_back
+                    except Exception:
+                        st.session_state[key] = value  # Fallback to saved value
+                else:
+                    st.session_state[key] = value
 
     # --- Timer Display and Auto-Submit Logic ---
     if exam_start_time and time_limit_active:
@@ -296,20 +316,15 @@ def display_questions(language_code):
                 index=None
             )
 
-            # Map back to English and store English answer in session state
-            english_answer = option_map[selected_translated] if selected_translated else ""
-            st.session_state[f"answer_{idx}"] = english_answer
-            answer = english_answer
+            # Map back to English for saving
+            answer = option_map[selected_translated] if selected_translated else ""
         else:
-            # For text input questions, get the input and translate to English
+            # For text input questions, get the input and translate to English for saving
             text_answer = st.text_input(label, key=f"answer_{idx}")
             if language_code != "en" and text_answer.strip():
                 try:
-                    english_answer = GoogleTranslator(source=language_code, target='en').translate(text_answer)
-                    st.session_state[f"answer_{idx}"] = english_answer
-                    answer = english_answer
+                    answer = GoogleTranslator(source=language_code, target='en').translate(text_answer)
                 except Exception:
-                    st.session_state[f"answer_{idx}"] = text_answer
                     answer = text_answer  # Fallback to original if translation fails
             else:
                 answer = text_answer
@@ -318,13 +333,8 @@ def display_questions(language_code):
 
     # Save partial answers periodically (every few seconds when timer is active)
     if exam_start_time:
-        current_answers = {}
-        for key, val in st.session_state.items():
-            if key.startswith("answer_"):
-                current_answers[key] = val
-        
-        # Save answers if there are any changes or periodically
-        save_partial_answers(institution_code, reg_no, current_answers, exam_start_time)
+        # Save the translated answers (in English) instead of raw session state
+        save_partial_answers(institution_code, reg_no, answers, exam_start_time)
 
     confirm = st.checkbox("I confirm that I have answered all the questions.")
 
