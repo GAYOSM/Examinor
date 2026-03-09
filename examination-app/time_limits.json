@@ -1,6 +1,6 @@
 {
   "admin2002": {
-    "enabled": true,
+    "enabled": false,
     "minutes": 60
   }
 }

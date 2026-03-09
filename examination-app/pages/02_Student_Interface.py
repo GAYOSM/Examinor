@@ -235,7 +235,6 @@ def display_questions(language_code):
                 st.session_state[key] = value
 
     # --- Timer Display and Auto-Submit Logic ---
-    st.write(f"DEBUG: exam_start_time={exam_start_time}, time_limit_active={time_limit_active}, time_limit_minutes={time_limit_minutes}")
     if exam_start_time and time_limit_active:
         # schedule periodic rerun so timer updates and triggers auto-submission
         st_autorefresh(interval=1 * 1000, key="student_timer_refresh")
