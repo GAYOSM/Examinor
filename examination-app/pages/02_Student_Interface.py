@@ -105,18 +105,24 @@ def clear_partial_answers(institution_code, reg_no):
         os.remove(filename)
 
 
-def submit_responses(auto_submit=False):
+def submit_responses(auto_submit=False, processed_answers=None):
     """Collect answers from session and write to CSV, then clear state."""
     student_details = st.session_state.get("student_details", {})
     responses_file = st.session_state.get("responses_file", "")
     institution_code = student_details.get("institution_code", "")
     reg_no = student_details.get("reg_no", "")
     
-    # gather answers stored in session state
-    answers = {}
-    for key, val in st.session_state.items():
-        if key.startswith("answer_"):
-            answers[key] = val
+    # Use processed answers if provided, otherwise try to get from session state, otherwise collect from session state
+    if processed_answers is not None:
+        answers = {f"answer_{i}": ans for i, ans in enumerate(processed_answers)}
+    elif "processed_answers" in st.session_state:
+        answers = {f"answer_{i}": ans for i, ans in enumerate(st.session_state.processed_answers)}
+    else:
+        # gather answers stored in session state
+        answers = {}
+        for key, val in st.session_state.items():
+            if key.startswith("answer_"):
+                answers[key] = val
 
     response = {
         "name": student_details.get("name", ""),
@@ -150,6 +156,8 @@ def submit_responses(auto_submit=False):
     st.session_state.exam_start_time = None
     st.session_state.auto_submit = False
     st.session_state.student_details = {}
+    if "processed_answers" in st.session_state:
+        del st.session_state.processed_answers
 
     # navigate
     if auto_submit:
@@ -330,6 +338,9 @@ def display_questions(language_code):
                 answer = text_answer
 
         answers.append(answer)
+
+    # Store processed English answers in session state for submission
+    st.session_state.processed_answers = answers
 
     # Save partial answers periodically (every few seconds when timer is active)
     if exam_start_time:
