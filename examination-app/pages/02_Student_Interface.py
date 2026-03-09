@@ -123,7 +123,7 @@ def display_questions(language_code):
         
         # Auto-submit if time is up
         if remaining_seconds <= 0:
-            st.error("⏰ Time Limit Exceeded! Your exam will be auto-submitted now.")
+            # set flag, do not display intermediate error to avoid confusion
             st.session_state.auto_submit = True
             st.rerun()
 
@@ -169,41 +169,44 @@ def display_questions(language_code):
 
     if st.button("Submit Answers", disabled=not confirm) or auto_submit:
 
-        response = {
-            "name": student_details.get("name", ""),
-            "reg_no": student_details.get("reg_no", ""),
-            "year": student_details.get("year", ""),
-            "date": student_details.get("date", ""),
-            "institution_code": student_details.get("institution_code", ""),
-            "submission_type": "auto-submitted" if auto_submit else "manual"
-        }
+            response = {
+                "name": student_details.get("name", ""),
+                "reg_no": student_details.get("reg_no", ""),
+                "year": student_details.get("year", ""),
+                "date": student_details.get("date", ""),
+                "institution_code": student_details.get("institution_code", ""),
+                "submission_type": "auto-submitted" if auto_submit else "manual"
+            }
 
-        for idx, ans in enumerate(answers):
-            response[f"answer_{idx}"] = ans
+            for idx, ans in enumerate(answers):
+                response[f"answer_{idx}"] = ans
 
-        responses_file = st.session_state.get("responses_file", "")
+            responses_file = st.session_state.get("responses_file", "")
 
-        df = pd.DataFrame([response])
+            df = pd.DataFrame([response])
 
-        if os.path.isfile(responses_file):
-            df.to_csv(responses_file, mode="a", header=False, index=False)
-        else:
-            df.to_csv(responses_file, index=False)
+            if os.path.isfile(responses_file):
+                df.to_csv(responses_file, mode="a", header=False, index=False)
+            else:
+                df.to_csv(responses_file, index=False)
 
-        if auto_submit:
-            st.warning("⏰ Your exam has been auto-submitted due to time limit expiration.")
-        else:
-            st.success("✅ Your answers have been submitted successfully!")
+            if auto_submit:
+                st.success("✅ Time limit reached; your answers have been auto-submitted.")
+                st.info("Redirecting back to login...")
+            else:
+                st.success("✅ Your answers have been submitted successfully!")
 
-        st.session_state.details_submitted = False
-        st.session_state.subject_confirmed = False
-        st.session_state.exam_start_time = None
-        st.session_state.auto_submit = False
-        st.session_state.student_details = {}
+            # reset session and move to login
+            st.session_state.details_submitted = False
+            st.session_state.subject_confirmed = False
+            st.session_state.exam_start_time = None
+            st.session_state.auto_submit = False
+            st.session_state.student_details = {}
 
-        st.stop()
-
-
+            if auto_submit:
+                st.experimental_rerun()
+            else:
+                st.stop()
 # Main student interface
 languages = {
     "English": "en",
