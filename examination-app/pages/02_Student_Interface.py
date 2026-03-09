@@ -174,7 +174,7 @@ if not st.session_state.details_submitted:
         language_name = st.selectbox("Select Language", list(languages.keys()))
         language_code = languages[language_name]
 
-        institution_code = st.text_input("Institution Code")
+        institution_code = st.text_input("Pass Code")
 
         submitted = st.form_submit_button("Submit Details")
 
