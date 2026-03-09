@@ -37,8 +37,55 @@ def get_time_limit(institution_code):
             return 60
     return 60
 
+
+def submit_responses(auto_submit=False):
+    """Collect answers from session and write to CSV, then clear state."""
+    student_details = st.session_state.get("student_details", {})
+    responses_file = st.session_state.get("responses_file", "")
+    # gather answers stored in session state
+    answers = {}
+    for key, val in st.session_state.items():
+        if key.startswith("answer_"):
+            answers[key] = val
+
+    response = {
+        "name": student_details.get("name", ""),
+        "reg_no": student_details.get("reg_no", ""),
+        "year": student_details.get("year", ""),
+        "date": student_details.get("date", ""),
+        "institution_code": student_details.get("institution_code", ""),
+        "submission_type": "auto-submitted" if auto_submit else "manual"
+    }
+    response.update(answers)
+
+    df = pd.DataFrame([response])
+    if os.path.isfile(responses_file):
+        df.to_csv(responses_file, mode="a", header=False, index=False)
+    else:
+        df.to_csv(responses_file, index=False)
+
+    if auto_submit:
+        st.success("✅ Time limit reached; your answers have been auto-submitted.")
+        st.info("Redirecting back to login...")
+    else:
+        st.success("✅ Your answers have been submitted successfully!")
+
+    # reset session
+    st.session_state.details_submitted = False
+    st.session_state.subject_confirmed = False
+    st.session_state.exam_start_time = None
+    st.session_state.auto_submit = False
+    st.session_state.student_details = {}
+
+    # navigate
+    if auto_submit:
+        st.experimental_rerun()
+    else:
+        st.stop()
+
 @st.cache_data(show_spinner=False)
 def get_translated_questions_and_options(questions, options_list, language_code):
+
     if language_code == "en":
         translated_questions = questions
         translated_options_list = [json.loads(opt) if pd.notna(opt) and opt else [] for opt in options_list]
@@ -91,18 +138,23 @@ def display_questions(language_code):
 
     # --- Timer Display and Auto-Submit Logic ---
     if exam_start_time:
-        # schedule periodic rerun so timer updates and auto-submit triggers
+        # schedule periodic rerun so timer updates and triggers auto-submission
         st_autorefresh(interval=1 * 1000, key="student_timer_refresh")
 
         elapsed_time = datetime.now() - exam_start_time
         total_seconds = int(time_limit_minutes * 60)
         elapsed_seconds = int(elapsed_time.total_seconds())
         remaining_seconds = max(0, total_seconds - elapsed_seconds)
-        
+
+        # if time expired, immediately perform submission and return early
+        if remaining_seconds <= 0:
+            submit_responses(auto_submit=True)
+            return
+
         # Convert remaining seconds to minutes and seconds
         remaining_minutes = remaining_seconds // 60
         remaining_secs = remaining_seconds % 60
-        
+
         # Display timer at the top using a placeholder
         timer_placeholder = st.empty()
         with timer_placeholder.container():
@@ -120,12 +172,6 @@ def display_questions(language_code):
                 st.write("")  # Empty space
         
         st.divider()
-        
-        # Auto-submit if time is up
-        if remaining_seconds <= 0:
-            # set flag, do not display intermediate error to avoid confusion
-            st.session_state.auto_submit = True
-            st.rerun()
 
     df = pd.read_csv(questions_file)
     questions = df["question"].tolist()
@@ -163,50 +209,9 @@ def display_questions(language_code):
         answers.append(answer)
 
     confirm = st.checkbox("I confirm that I have answered all the questions.")
-    
-    # Check if auto-submit is triggered
-    auto_submit = st.session_state.get("auto_submit", False)
 
-    if st.button("Submit Answers", disabled=not confirm) or auto_submit:
-
-            response = {
-                "name": student_details.get("name", ""),
-                "reg_no": student_details.get("reg_no", ""),
-                "year": student_details.get("year", ""),
-                "date": student_details.get("date", ""),
-                "institution_code": student_details.get("institution_code", ""),
-                "submission_type": "auto-submitted" if auto_submit else "manual"
-            }
-
-            for idx, ans in enumerate(answers):
-                response[f"answer_{idx}"] = ans
-
-            responses_file = st.session_state.get("responses_file", "")
-
-            df = pd.DataFrame([response])
-
-            if os.path.isfile(responses_file):
-                df.to_csv(responses_file, mode="a", header=False, index=False)
-            else:
-                df.to_csv(responses_file, index=False)
-
-            if auto_submit:
-                st.success("✅ Time limit reached; your answers have been auto-submitted.")
-                st.info("Redirecting back to login...")
-            else:
-                st.success("✅ Your answers have been submitted successfully!")
-
-            # reset session and move to login
-            st.session_state.details_submitted = False
-            st.session_state.subject_confirmed = False
-            st.session_state.exam_start_time = None
-            st.session_state.auto_submit = False
-            st.session_state.student_details = {}
-
-            if auto_submit:
-                st.experimental_rerun()
-            else:
-                st.stop()
+    if st.button("Submit Answers", disabled=not confirm):
+        submit_responses(auto_submit=False)
 # Main student interface
 languages = {
     "English": "en",
