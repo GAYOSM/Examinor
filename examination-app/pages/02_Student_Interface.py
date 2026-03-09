@@ -211,7 +211,8 @@ def display_questions(language_code):
     lim_data = get_time_limit_data(institution_code)
     time_limit_minutes = lim_data.get("minutes", 60)
     time_limit_active = lim_data.get("enabled", False)
-    exam_start_time = st.session_state.get("exam_start_time")
+    exam_start_time_str = st.session_state.get("exam_start_time")
+    exam_start_time = datetime.fromisoformat(exam_start_time_str) if exam_start_time_str else None
 
     if not questions_file or not os.path.isfile(questions_file):
         st.error("Questions file not found. Please contact your administrator.")
@@ -223,7 +224,7 @@ def display_questions(language_code):
         # Resuming exam - restore start time and answers
         saved_start_time = partial_data.get("exam_start_time")
         if saved_start_time:
-            st.session_state.exam_start_time = saved_start_time
+            st.session_state.exam_start_time = saved_start_time.isoformat()
             exam_start_time = saved_start_time
             st.info("📝 Resuming your previous exam session...")
         
@@ -470,7 +471,7 @@ elif not st.session_state.subject_confirmed:
         if has_partial and exam_option == "🔄 Start fresh exam":
             # Clear partial answers and start fresh
             clear_partial_answers(institution_code, student_details.get("reg_no", ""))
-            st.session_state.exam_start_time = datetime.now()
+            st.session_state.exam_start_time = datetime.now().isoformat()
             st.session_state.subject_confirmed = True
             st.success("Starting fresh exam...")
             st.rerun()
@@ -480,7 +481,7 @@ elif not st.session_state.subject_confirmed:
                 # For resume, exam_start_time will be loaded from partial data
                 pass
             else:
-                st.session_state.exam_start_time = datetime.now()
+                st.session_state.exam_start_time = datetime.now().isoformat()
             st.session_state.subject_confirmed = True
             st.rerun()
     else:
