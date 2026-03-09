@@ -47,6 +47,35 @@ def set_admin_password(institution_code, password):
     passwords[institution_code] = password
     save_admin_passwords(passwords)
 
+# --- Subject Title Management ---
+SUBJECT_TITLES_FILE = "subject_titles.json"
+
+def load_subject_titles():
+    """Load all institution subject titles from JSON file."""
+    if os.path.isfile(SUBJECT_TITLES_FILE):
+        try:
+            with open(SUBJECT_TITLES_FILE) as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_subject_titles(titles_dict):
+    """Save all institution subject titles to JSON file."""
+    with open(SUBJECT_TITLES_FILE, "w") as f:
+        json.dump(titles_dict, f, indent=4)
+
+def get_subject_title(institution_code):
+    """Get subject title for a specific institution."""
+    titles = load_subject_titles()
+    return titles.get(institution_code, "")
+
+def set_subject_title(institution_code, subject_title):
+    """Save subject title for a specific institution."""
+    titles = load_subject_titles()
+    titles[institution_code] = subject_title
+    save_subject_titles(titles)
+
 # --- Centered Login Form ---
 if "admin_logged_in" not in st.session_state or not st.session_state["admin_logged_in"]:
     st.write("")
@@ -139,6 +168,20 @@ with col2:
         st.rerun()
 
 st_autorefresh(interval=30 * 1000, key="adminrefresh")
+st.divider()
+
+# --- Subject Title Setting ---
+st.subheader("📚 Subject Title")
+st.caption("Set the exam subject title that will be displayed to students.")
+current_subject = get_subject_title(institution_code)
+new_subject = st.text_input("Subject Title", value=current_subject, placeholder="e.g., Mathematics - Final Examination")
+if st.button("💾 Save Subject Title", key="save_subject"):
+    if new_subject.strip():
+        set_subject_title(institution_code, new_subject.strip())
+        st.success(f"✅ Subject Title updated: '{new_subject.strip()}'")
+    else:
+        st.warning("Please enter a subject title.")
+
 st.divider()
 
 # --- Top row: Upload Questions | WhatsApp Share ---

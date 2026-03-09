@@ -11,6 +11,19 @@ from deep_translator import GoogleTranslator
 st.set_page_config(page_title="Examination Portal", layout="wide")
 st.title("📚 Examination Portal")
 
+# --- Subject Title Management ---
+def get_subject_title(institution_code):
+    """Get subject title for a specific institution."""
+    titles_file = "subject_titles.json"
+    if os.path.isfile(titles_file):
+        try:
+            with open(titles_file) as f:
+                titles = json.load(f)
+                return titles.get(institution_code, "")
+        except:
+            return ""
+    return ""
+
 @st.cache_data(show_spinner=False)
 def get_translated_questions_and_options(questions, options_list, language_code):
     if language_code == "en":
@@ -152,6 +165,9 @@ if "student_details" not in st.session_state:
 if "details_submitted" not in st.session_state:
     st.session_state.details_submitted = False
 
+if "subject_confirmed" not in st.session_state:
+    st.session_state.subject_confirmed = False
+
 if "selected_language" not in st.session_state:
     st.session_state.selected_language = "en"
 
@@ -215,16 +231,52 @@ if not st.session_state.details_submitted:
                     st.session_state.responses_file = responses_file
                     st.session_state.selected_language = language_code
                     st.session_state.details_submitted = True
+                    st.session_state.subject_confirmed = False
 
                     st.success("Details submitted successfully!")
 
                     st.rerun()
 
+elif not st.session_state.subject_confirmed:
+    # --- Subject Confirmation Page ---
+    student_details = st.session_state.get("student_details", {})
+    institution_code = student_details.get("institution_code", "")
+    subject_title = get_subject_title(institution_code)
+    
+    st.markdown("---")
+    st.subheader("📖 Confirm Exam Subject")
+    st.write("Please verify the exam subject before proceeding:")
+    
+    with st.container(border=True):
+        st.markdown(f"### **📚 {subject_title if subject_title else 'Subject Not Set'}**")
+        st.info(f"**Student Name:** {student_details.get('name', '')}")
+        st.info(f"**Register No:** {student_details.get('reg_no', '')}")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        confirm_checkbox = st.checkbox("✅ I confirm that the subject is correct and I am ready to take the exam.")
+    
+    with col2:
+        if st.button("🔙 Back to Details", key="back_to_details"):
+            st.session_state.details_submitted = False
+            st.session_state.student_details = {}
+            st.session_state.subject_confirmed = False
+            st.rerun()
+    
+    if confirm_checkbox:
+        if st.button("📝 Proceed to Exam", key="proceed_exam"):
+            st.session_state.subject_confirmed = True
+            st.rerun()
+    else:
+        st.warning("Please confirm the subject to proceed.")
+
 else:
     col1, col2 = st.columns([4, 1])
     with col2:
-        if st.button("🔙 Back to Details"):
+        if st.button("🔙 Back to Details", key="back_to_exam"):
             st.session_state.details_submitted = False
+            st.session_state.subject_confirmed = False
             st.session_state.student_details = {}
             st.rerun()
     
