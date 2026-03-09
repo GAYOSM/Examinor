@@ -419,6 +419,14 @@ with st.expander("📑 Generate Student Response PDF", expanded=False):
         selected_student = st.selectbox("Select a student", options=student_names)
         
         if st.button("Generate PDF"):
+            def sanitize_text_for_pdf(text):
+                """Convert non-ASCII characters to ASCII equivalents or remove them."""
+                if pd.isna(text):
+                    return ""
+                text = str(text)
+                # Try to encode as UTF-8 and decode with 'ignore' to remove non-ASCII
+                return text.encode('ascii', 'ignore').decode('ascii') if text else ""
+            
             def save_student_response_pdf(student_row, questions_df, filename):
                 pdf = FPDF()
                 pdf.add_page()
@@ -432,8 +440,8 @@ with st.expander("📑 Generate Student Response PDF", expanded=False):
                 except:
                     pdf.set_font("Arial", size=12)
                 
-                pdf.cell(0, 10, f"Student Name: {student_row['name']}", ln=True)
-                pdf.cell(0, 10, f"Reg No: {student_row['reg_no']}", ln=True)
+                pdf.cell(0, 10, f"Student Name: {sanitize_text_for_pdf(student_row['name'])}", ln=True)
+                pdf.cell(0, 10, f"Reg No: {sanitize_text_for_pdf(student_row['reg_no'])}", ln=True)
 
                 obtained = 0
                 total = 0
@@ -449,7 +457,7 @@ with st.expander("📑 Generate Student Response PDF", expanded=False):
                 pdf.ln(5)
 
                 for idx, q_row in questions_df.iterrows():
-                    question = q_row["question"]
+                    question = sanitize_text_for_pdf(q_row["question"])
                     options = json.loads(q_row["options"])
                     correct = str(q_row["correct_answer"]).strip().lower()
                     student_answer = str(student_row.get(f"answer_{idx}", "")).strip().lower()
@@ -457,16 +465,17 @@ with st.expander("📑 Generate Student Response PDF", expanded=False):
                     pdf.set_text_color(0, 0, 0)
                     pdf.multi_cell(0, 8, f"Q{idx+1}: {question} (Marks: {q_row['marks']})")
                     for opt in options:
+                        opt_sanitized = sanitize_text_for_pdf(opt)
                         opt_str = str(opt).strip().lower()
                         if opt_str == student_answer:
                             if opt_str == correct:
                                 pdf.set_text_color(0, 128, 0)
                             else:
                                 pdf.set_text_color(220, 20, 60)
-                            pdf.cell(0, 8, f"  - {opt} (Student Answer)", ln=True)
+                            pdf.cell(0, 8, f"  - {opt_sanitized} (Student Answer)", ln=True)
                         else:
                             pdf.set_text_color(0, 0, 0)
-                            pdf.cell(0, 8, f"  - {opt}", ln=True)
+                            pdf.cell(0, 8, f"  - {opt_sanitized}", ln=True)
                     pdf.ln(2)
                 pdf.output(filename)
 

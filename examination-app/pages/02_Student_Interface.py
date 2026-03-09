@@ -296,14 +296,20 @@ def display_questions(language_code):
                 index=None
             )
 
-            answer = option_map[selected_translated] if selected_translated else ""
+            # Map back to English and store English answer in session state
+            english_answer = option_map[selected_translated] if selected_translated else ""
+            st.session_state[f"answer_{idx}"] = english_answer
+            answer = english_answer
         else:
-            # For text input questions, translate answer back to English if not already in English
+            # For text input questions, get the input and translate to English
             text_answer = st.text_input(label, key=f"answer_{idx}")
             if language_code != "en" and text_answer.strip():
                 try:
-                    answer = GoogleTranslator(source=language_code, target='en').translate(text_answer)
+                    english_answer = GoogleTranslator(source=language_code, target='en').translate(text_answer)
+                    st.session_state[f"answer_{idx}"] = english_answer
+                    answer = english_answer
                 except Exception:
+                    st.session_state[f"answer_{idx}"] = text_answer
                     answer = text_answer  # Fallback to original if translation fails
             else:
                 answer = text_answer
