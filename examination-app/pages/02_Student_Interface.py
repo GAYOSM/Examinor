@@ -124,7 +124,8 @@ def submit_responses(auto_submit=False):
         "year": student_details.get("year", ""),
         "date": student_details.get("date", ""),
         "institution_code": institution_code,
-        "submission_type": "auto-submitted" if auto_submit else "manual"
+        "submission_type": "auto-submitted" if auto_submit else "manual",
+        "selected_language": st.session_state.get("selected_language", "en")
     }
     response.update(answers)
 
@@ -297,7 +298,15 @@ def display_questions(language_code):
 
             answer = option_map[selected_translated] if selected_translated else ""
         else:
-            answer = st.text_input(label, key=f"answer_{idx}")
+            # For text input questions, translate answer back to English if not already in English
+            text_answer = st.text_input(label, key=f"answer_{idx}")
+            if language_code != "en" and text_answer.strip():
+                try:
+                    answer = GoogleTranslator(source=language_code, target='en').translate(text_answer)
+                except Exception:
+                    answer = text_answer  # Fallback to original if translation fails
+            else:
+                answer = text_answer
 
         answers.append(answer)
 
