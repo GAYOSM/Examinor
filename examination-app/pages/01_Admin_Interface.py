@@ -55,7 +55,7 @@ if "admin_logged_in" not in st.session_state or not st.session_state["admin_logg
     st.write("Enter your credentials to access the admin dashboard.")
     
     with st.form("institution_login"):
-        institution_code = st.text_input("Institution Code")
+        institution_code = st.text_input("Pass Code")
         admin_password = st.text_input("Admin Password", type="password")
         submitted = st.form_submit_button("Login")
         
