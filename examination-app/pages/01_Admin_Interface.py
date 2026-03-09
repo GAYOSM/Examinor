@@ -79,31 +79,74 @@ def set_subject_title(institution_code, subject_title):
 # --- Time Limit Management ---
 TIME_LIMITS_FILE = "time_limits.json"
 
+
+def normalize_limit_entry(entry):
+    """Convert legacy numeric entry to dict format.
+
+    New format: {"enabled": bool, "minutes": int}.
+    """
+    if isinstance(entry, dict):
+        # ensure keys exist
+        return {
+            "enabled": entry.get("enabled", True),
+            "minutes": entry.get("minutes", 60)
+        }
+    else:
+        # old value, treat as enabled
+        try:
+            mins = int(entry)
+        except Exception:
+            mins = 60
+        return {"enabled": True, "minutes": mins}
+
+
 def load_time_limits():
-    """Load all institution time limits from JSON file."""
+    """Load all institution time limits from JSON file.
+
+    Entries are normalized to dicts with enabled/minutes.
+    """
     if os.path.isfile(TIME_LIMITS_FILE):
         try:
             with open(TIME_LIMITS_FILE) as f:
-                return json.load(f)
+                raw = json.load(f)
+                return {k: normalize_limit_entry(v) for k, v in raw.items()}
         except:
             return {}
     return {}
+
 
 def save_time_limits(limits_dict):
     """Save all institution time limits to JSON file."""
     with open(TIME_LIMITS_FILE, "w") as f:
         json.dump(limits_dict, f, indent=4)
 
-def get_time_limit(institution_code):
-    """Get time limit (in minutes) for a specific institution."""
+
+def get_time_limit_data(institution_code):
+    """Return dict {enabled, minutes} for institution."""
     limits = load_time_limits()
-    return limits.get(institution_code, 60)  # Default 60 minutes
+    return limits.get(institution_code, {"enabled": True, "minutes": 60})
+
+
+def set_time_limit_data(institution_code, enabled, minutes):
+    """Save enable flag and minutes for an institution."""
+    limits = load_time_limits()
+    limits[institution_code] = {"enabled": bool(enabled), "minutes": int(minutes)}
+    save_time_limits(limits)
+
+
+def get_time_limit(institution_code):
+    """Convenience: return minutes only."""
+    return get_time_limit_data(institution_code)["minutes"]
+
+
+def is_time_limit_enabled(institution_code):
+    return get_time_limit_data(institution_code).get("enabled", False)
+
 
 def set_time_limit(institution_code, time_limit_minutes):
-    """Save time limit (in minutes) for a specific institution."""
-    limits = load_time_limits()
-    limits[institution_code] = time_limit_minutes
-    save_time_limits(limits)
+    """Deprecated. Use set_time_limit_data."""
+    data = get_time_limit_data(institution_code)
+    set_time_limit_data(institution_code, data.get("enabled", True), time_limit_minutes)
 
 # --- Centered Login Form ---
 if "admin_logged_in" not in st.session_state or not st.session_state["admin_logged_in"]:
@@ -215,15 +258,23 @@ st.divider()
 
 # --- Time Limit Setting ---
 st.subheader("⏱️ Exam Time Limit")
-st.caption("Set the maximum duration (in minutes) for students to complete the exam. Exams will auto-submit when time expires.")
-current_time_limit = get_time_limit(institution_code)
-new_time_limit = st.number_input("Time Limit (minutes)", value=current_time_limit, min_value=1, max_value=480, step=5)
+lim_data = get_time_limit_data(institution_code)
+enabled = lim_data.get("enabled", True)
+minutes = lim_data.get("minutes", 60)
+
+enabled = st.checkbox("Enable time limit for this exam", value=enabled)
+if enabled:
+    st.caption("Set the maximum duration (in minutes) for students to complete the exam. Exams will auto-submit when time expires.")
+    minutes = st.number_input("Time Limit (minutes)", value=minutes, min_value=1, max_value=480, step=5)
+else:
+    st.caption("Time limit is disabled; students can take the exam without a timer.")
+
 if st.button("💾 Save Time Limit", key="save_time_limit"):
-    if new_time_limit > 0:
-        set_time_limit(institution_code, int(new_time_limit))
-        st.success(f"✅ Time Limit updated: {int(new_time_limit)} minutes")
+    set_time_limit_data(institution_code, enabled, minutes)
+    if enabled:
+        st.success(f"✅ Time Limit {'enabled' if enabled else 'disabled'}: {minutes} minutes")
     else:
-        st.warning("Please enter a valid time limit (1-480 minutes).")
+        st.success("✅ Time limit disabled for this exam.")
 
 st.divider()
 

@@ -25,6 +25,36 @@ def get_subject_title(institution_code):
             return ""
     return ""
 
+# time limit helpers duplicated here since admin file isn't imported
+TIME_LIMITS_FILE = "time_limits.json"
+
+def normalize_limit_entry(entry):
+    if isinstance(entry, dict):
+        return {"enabled": entry.get("enabled", True), "minutes": entry.get("minutes", 60)}
+    else:
+        try:
+            mins = int(entry)
+        except Exception:
+            mins = 60
+        return {"enabled": True, "minutes": mins}
+
+
+def load_time_limits():
+    if os.path.isfile(TIME_LIMITS_FILE):
+        try:
+            with open(TIME_LIMITS_FILE) as f:
+                raw = json.load(f)
+                return {k: normalize_limit_entry(v) for k, v in raw.items()}
+        except:
+            return {}
+    return {}
+
+
+def get_time_limit_data(institution_code):
+    limits = load_time_limits()
+    return limits.get(institution_code, {"enabled": False, "minutes": 60})
+
+
 def get_time_limit(institution_code):
     """Get time limit (in minutes) for a specific institution."""
     limits_file = "time_limits.json"
@@ -129,7 +159,9 @@ def display_questions(language_code):
     student_details = st.session_state.get("student_details", {})
     questions_file = st.session_state.get("questions_file", "")
     institution_code = student_details.get("institution_code", "")
-    time_limit_minutes = get_time_limit(institution_code)
+    lim_data = get_time_limit_data(institution_code)
+    time_limit_minutes = lim_data.get("minutes", 60)
+    time_limit_active = lim_data.get("enabled", False)
     exam_start_time = st.session_state.get("exam_start_time")
 
     if not questions_file or not os.path.isfile(questions_file):
@@ -137,7 +169,7 @@ def display_questions(language_code):
         return
 
     # --- Timer Display and Auto-Submit Logic ---
-    if exam_start_time:
+    if exam_start_time and time_limit_active:
         # schedule periodic rerun so timer updates and triggers auto-submission
         st_autorefresh(interval=1 * 1000, key="student_timer_refresh")
 
