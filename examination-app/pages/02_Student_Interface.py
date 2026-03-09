@@ -235,6 +235,7 @@ def display_questions(language_code):
                 st.session_state[key] = value
 
     # --- Timer Display and Auto-Submit Logic ---
+    st.write(f"DEBUG: exam_start_time={exam_start_time}, time_limit_active={time_limit_active}, time_limit_minutes={time_limit_minutes}")
     if exam_start_time and time_limit_active:
         # schedule periodic rerun so timer updates and triggers auto-submission
         st_autorefresh(interval=1 * 1000, key="student_timer_refresh")
@@ -477,10 +478,11 @@ elif not st.session_state.subject_confirmed:
             st.rerun()
         elif st.button("📝 Proceed to Exam", key="proceed_exam"):
             # Either resuming or starting new exam
-            if not has_partial or exam_option == "📝 Resume previous exam":
-                # For resume, exam_start_time will be loaded from partial data
+            if has_partial and exam_option == "📝 Resume previous exam":
+                # Resuming - exam_start_time will be loaded from partial data
                 pass
             else:
+                # Fresh exam - set start time now
                 st.session_state.exam_start_time = datetime.now().isoformat()
             st.session_state.subject_confirmed = True
             st.rerun()
