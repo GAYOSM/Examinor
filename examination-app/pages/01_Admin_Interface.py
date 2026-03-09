@@ -76,6 +76,35 @@ def set_subject_title(institution_code, subject_title):
     titles[institution_code] = subject_title
     save_subject_titles(titles)
 
+# --- Time Limit Management ---
+TIME_LIMITS_FILE = "time_limits.json"
+
+def load_time_limits():
+    """Load all institution time limits from JSON file."""
+    if os.path.isfile(TIME_LIMITS_FILE):
+        try:
+            with open(TIME_LIMITS_FILE) as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_time_limits(limits_dict):
+    """Save all institution time limits to JSON file."""
+    with open(TIME_LIMITS_FILE, "w") as f:
+        json.dump(limits_dict, f, indent=4)
+
+def get_time_limit(institution_code):
+    """Get time limit (in minutes) for a specific institution."""
+    limits = load_time_limits()
+    return limits.get(institution_code, 60)  # Default 60 minutes
+
+def set_time_limit(institution_code, time_limit_minutes):
+    """Save time limit (in minutes) for a specific institution."""
+    limits = load_time_limits()
+    limits[institution_code] = time_limit_minutes
+    save_time_limits(limits)
+
 # --- Centered Login Form ---
 if "admin_logged_in" not in st.session_state or not st.session_state["admin_logged_in"]:
     st.write("")
@@ -181,6 +210,20 @@ if st.button("💾 Save Subject Title", key="save_subject"):
         st.success(f"✅ Subject Title updated: '{new_subject.strip()}'")
     else:
         st.warning("Please enter a subject title.")
+
+st.divider()
+
+# --- Time Limit Setting ---
+st.subheader("⏱️ Exam Time Limit")
+st.caption("Set the maximum duration (in minutes) for students to complete the exam. Exams will auto-submit when time expires.")
+current_time_limit = get_time_limit(institution_code)
+new_time_limit = st.number_input("Time Limit (minutes)", value=current_time_limit, min_value=1, max_value=480, step=5)
+if st.button("💾 Save Time Limit", key="save_time_limit"):
+    if new_time_limit > 0:
+        set_time_limit(institution_code, int(new_time_limit))
+        st.success(f"✅ Time Limit updated: {int(new_time_limit)} minutes")
+    else:
+        st.warning("Please enter a valid time limit (1-480 minutes).")
 
 st.divider()
 
