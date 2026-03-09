@@ -60,9 +60,17 @@ def save_partial_answers(institution_code, reg_no, answers, exam_start_time=None
     os.makedirs("src/partial_answers", exist_ok=True)
     filename = f"src/partial_answers/{institution_code}_{reg_no}.json"
     
+    # Handle both datetime objects and ISO strings
+    if exam_start_time is None:
+        start_time_iso = None
+    elif isinstance(exam_start_time, str):
+        start_time_iso = exam_start_time
+    else:
+        start_time_iso = exam_start_time.isoformat()
+    
     data = {
         "answers": answers,
-        "exam_start_time": exam_start_time.isoformat() if exam_start_time else None,
+        "exam_start_time": start_time_iso,
         "last_saved": datetime.now().isoformat()
     }
     
@@ -95,19 +103,6 @@ def clear_partial_answers(institution_code, reg_no):
     filename = f"src/partial_answers/{institution_code}_{reg_no}.json"
     if os.path.isfile(filename):
         os.remove(filename)
-
-
-def get_time_limit(institution_code):
-    """Get time limit (in minutes) for a specific institution."""
-    limits_file = "time_limits.json"
-    if os.path.isfile(limits_file):
-        try:
-            with open(limits_file) as f:
-                limits = json.load(f)
-                return limits.get(institution_code, 60)  # Default 60 minutes
-        except:
-            return 60
-    return 60
 
 
 def submit_responses(auto_submit=False):
