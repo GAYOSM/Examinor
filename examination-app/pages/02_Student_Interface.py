@@ -55,6 +55,48 @@ def get_time_limit_data(institution_code):
     return limits.get(institution_code, {"enabled": False, "minutes": 60})
 
 
+def save_partial_answers(institution_code, reg_no, answers, exam_start_time=None):
+    """Save student's partial answers to a JSON file."""
+    os.makedirs("src/partial_answers", exist_ok=True)
+    filename = f"src/partial_answers/{institution_code}_{reg_no}.json"
+    
+    data = {
+        "answers": answers,
+        "exam_start_time": exam_start_time.isoformat() if exam_start_time else None,
+        "last_saved": datetime.now().isoformat()
+    }
+    
+    with open(filename, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_partial_answers(institution_code, reg_no):
+    """Load student's partial answers from JSON file."""
+    filename = f"src/partial_answers/{institution_code}_{reg_no}.json"
+    
+    if not os.path.isfile(filename):
+        return None
+    
+    try:
+        with open(filename) as f:
+            data = json.load(f)
+        
+        # Parse exam_start_time back to datetime
+        if data.get("exam_start_time"):
+            data["exam_start_time"] = datetime.fromisoformat(data["exam_start_time"])
+        
+        return data
+    except:
+        return None
+
+
+def clear_partial_answers(institution_code, reg_no):
+    """Remove partial answers file after submission."""
+    filename = f"src/partial_answers/{institution_code}_{reg_no}.json"
+    if os.path.isfile(filename):
+        os.remove(filename)
+
+
 def get_time_limit(institution_code):
     """Get time limit (in minutes) for a specific institution."""
     limits_file = "time_limits.json"
@@ -72,6 +114,9 @@ def submit_responses(auto_submit=False):
     """Collect answers from session and write to CSV, then clear state."""
     student_details = st.session_state.get("student_details", {})
     responses_file = st.session_state.get("responses_file", "")
+    institution_code = student_details.get("institution_code", "")
+    reg_no = student_details.get("reg_no", "")
+    
     # gather answers stored in session state
     answers = {}
     for key, val in st.session_state.items():
@@ -80,10 +125,10 @@ def submit_responses(auto_submit=False):
 
     response = {
         "name": student_details.get("name", ""),
-        "reg_no": student_details.get("reg_no", ""),
+        "reg_no": reg_no,
         "year": student_details.get("year", ""),
         "date": student_details.get("date", ""),
-        "institution_code": student_details.get("institution_code", ""),
+        "institution_code": institution_code,
         "submission_type": "auto-submitted" if auto_submit else "manual"
     }
     response.update(answers)
@@ -93,6 +138,9 @@ def submit_responses(auto_submit=False):
         df.to_csv(responses_file, mode="a", header=False, index=False)
     else:
         df.to_csv(responses_file, index=False)
+
+    # Clear partial answers after submission
+    clear_partial_answers(institution_code, reg_no)
 
     if auto_submit:
         st.success("✅ Time limit reached; your answers have been auto-submitted.")
@@ -159,6 +207,7 @@ def display_questions(language_code):
     student_details = st.session_state.get("student_details", {})
     questions_file = st.session_state.get("questions_file", "")
     institution_code = student_details.get("institution_code", "")
+    reg_no = student_details.get("reg_no", "")
     lim_data = get_time_limit_data(institution_code)
     time_limit_minutes = lim_data.get("minutes", 60)
     time_limit_active = lim_data.get("enabled", False)
@@ -167,6 +216,22 @@ def display_questions(language_code):
     if not questions_file or not os.path.isfile(questions_file):
         st.error("Questions file not found. Please contact your administrator.")
         return
+
+    # Load partial answers if resuming
+    partial_data = load_partial_answers(institution_code, reg_no)
+    if partial_data and not exam_start_time:
+        # Resuming exam - restore start time and answers
+        saved_start_time = partial_data.get("exam_start_time")
+        if saved_start_time:
+            st.session_state.exam_start_time = saved_start_time
+            exam_start_time = saved_start_time
+            st.info("📝 Resuming your previous exam session...")
+        
+        # Restore saved answers to session state
+        saved_answers = partial_data.get("answers", {})
+        for key, value in saved_answers.items():
+            if key.startswith("answer_"):
+                st.session_state[key] = value
 
     # --- Timer Display and Auto-Submit Logic ---
     if exam_start_time and time_limit_active:
@@ -239,6 +304,16 @@ def display_questions(language_code):
             answer = st.text_input(label, key=f"answer_{idx}")
 
         answers.append(answer)
+
+    # Save partial answers periodically (every few seconds when timer is active)
+    if exam_start_time:
+        current_answers = {}
+        for key, val in st.session_state.items():
+            if key.startswith("answer_"):
+                current_answers[key] = val
+        
+        # Save answers if there are any changes or periodically
+        save_partial_answers(institution_code, reg_no, current_answers, exam_start_time)
 
     confirm = st.checkbox("I confirm that I have answered all the questions.")
 
@@ -325,6 +400,9 @@ if not st.session_state.details_submitted:
                     st.warning("You have already submitted answers.")
 
                 else:
+                    # Check for partial answers
+                    partial_data = load_partial_answers(code_clean, reg_no)
+                    has_partial = partial_data is not None and partial_data.get("answers")
 
                     st.session_state.student_details = {
                         "name": name,
@@ -339,6 +417,7 @@ if not st.session_state.details_submitted:
                     st.session_state.selected_language = language_code
                     st.session_state.details_submitted = True
                     st.session_state.subject_confirmed = False
+                    st.session_state.has_partial_answers = has_partial
 
                     st.success("Details submitted successfully!")
 
@@ -349,35 +428,66 @@ elif not st.session_state.subject_confirmed:
     student_details = st.session_state.get("student_details", {})
     institution_code = student_details.get("institution_code", "")
     subject_title = get_subject_title(institution_code)
+    has_partial = st.session_state.get("has_partial_answers", False)
     
     st.markdown("---")
-    st.subheader("📖 Confirm Exam Subject")
-    st.write("Please verify the exam subject before proceeding:")
+    if has_partial:
+        st.subheader("📝 Resume or Restart Exam")
+        st.write("You have a previous exam session in progress. Choose how to proceed:")
+    else:
+        st.subheader("📖 Confirm Exam Subject")
+        st.write("Please verify the exam subject before proceeding:")
     
     with st.container(border=True):
         st.markdown(f"### **📚 {subject_title if subject_title else 'Subject Not Set'}**")
         st.info(f"**Student Name:** {student_details.get('name', '')}")
         st.info(f"**Register No:** {student_details.get('reg_no', '')}")
+        if has_partial:
+            st.info("📋 **Previous session found** - You can resume where you left off or start fresh.")
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        confirm_checkbox = st.checkbox("✅ I confirm that the subject is correct and I am ready to take the exam.")
+        if has_partial:
+            exam_option = st.radio(
+                "Choose your option:",
+                ["📝 Resume previous exam", "🔄 Start fresh exam"],
+                key="exam_option"
+            )
+            confirm_checkbox = st.checkbox("✅ I confirm my choice and am ready to proceed.")
+        else:
+            confirm_checkbox = st.checkbox("✅ I confirm that the subject is correct and I am ready to take the exam.")
     
     with col2:
         if st.button("🔙 Back to Details", key="back_to_details"):
             st.session_state.details_submitted = False
             st.session_state.student_details = {}
             st.session_state.subject_confirmed = False
+            st.session_state.has_partial_answers = False
             st.rerun()
     
     if confirm_checkbox:
-        if st.button("📝 Proceed to Exam", key="proceed_exam"):
+        if has_partial and exam_option == "🔄 Start fresh exam":
+            # Clear partial answers and start fresh
+            clear_partial_answers(institution_code, student_details.get("reg_no", ""))
             st.session_state.exam_start_time = datetime.now()
+            st.session_state.subject_confirmed = True
+            st.success("Starting fresh exam...")
+            st.rerun()
+        elif st.button("📝 Proceed to Exam", key="proceed_exam"):
+            # Either resuming or starting new exam
+            if not has_partial or exam_option == "📝 Resume previous exam":
+                # For resume, exam_start_time will be loaded from partial data
+                pass
+            else:
+                st.session_state.exam_start_time = datetime.now()
             st.session_state.subject_confirmed = True
             st.rerun()
     else:
-        st.warning("Please confirm the subject to proceed.")
+        if has_partial:
+            st.warning("Please choose an option and confirm to proceed.")
+        else:
+            st.warning("Please confirm the subject to proceed.")
 
 else:
     col1, col2 = st.columns([4, 1])
@@ -387,6 +497,7 @@ else:
             st.session_state.subject_confirmed = False
             st.session_state.exam_start_time = None
             st.session_state.auto_submit = False
+            st.session_state.has_partial_answers = False
             st.session_state.student_details = {}
             st.rerun()
     
