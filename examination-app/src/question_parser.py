@@ -39,7 +39,7 @@ def parse_docx(file_path):
             try:
                 current_marks = int(text.replace("Marks:", "").strip())
             except:
-                current_marks = None
+                current_marks = 1  # Default to 1 mark if parsing fails
 
     # Save the last question
     if current_question is not None:

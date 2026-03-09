@@ -287,6 +287,10 @@ with colA:
     if uploaded_file is not None:
         questions, options_list, marks, correct_answers = parse_docx(uploaded_file)
         os.makedirs("src/questions", exist_ok=True)
+        
+        # Ensure marks are never None
+        marks = [m if m is not None else 1 for m in marks]
+        
         pd.DataFrame({
             "question": questions,
             "options": [json.dumps(opt if opt is not None else []) for opt in options_list],
@@ -446,13 +450,25 @@ with st.expander("📑 Generate Student Response PDF", expanded=False):
                 obtained = 0
                 total = 0
                 for idx, q_row in questions_df.iterrows():
-                    correct = str(q_row["correct_answer"]).strip().lower()
-                    student_answer = str(student_row.get(f"answer_{idx}", "")).strip().lower()
-                    marks = q_row["marks"]
+                    # Ensure we have valid data
+                    correct_raw = q_row.get("correct_answer")
+                    correct = str(correct_raw).strip().lower() if pd.notna(correct_raw) and correct_raw else ""
+                    
+                    student_answer_raw = student_row.get(f"answer_{idx}", "")
+                    student_answer = str(student_answer_raw).strip().lower() if student_answer_raw else ""
+                    
+                    marks_raw = q_row.get("marks")
+                    marks = int(marks_raw) if pd.notna(marks_raw) and marks_raw != "" else 0
+                    
                     total += marks
-                    if pd.notna(correct) and student_answer == correct:
+                    # Only award marks if both answers exist and match exactly
+                    if correct and student_answer and student_answer == correct:
                         obtained += marks
 
+                # Ensure we have valid numbers
+                obtained = int(obtained) if obtained else 0
+                total = int(total) if total else 0
+                
                 pdf.cell(0, 10, f"Marks Obtained: {obtained} / {total}", ln=True)
                 pdf.ln(5)
 
