@@ -124,10 +124,10 @@ if "admin_logged_in" not in st.session_state or not st.session_state["admin_logg
     
     st.stop()
 else:
-    institution_code = st.session_state["Pass_code"]
+    institution_code = st.session_state["institution_code"]
 
 # --- Institution Info and Student Link ---
-st.info(f"Institution: {institution_code}")
+st.info(f"Passcode: {institution_code}")
 col1, col2 = st.columns(2)
 with col1:
     if st.button("🎓 Go to Student Interface"):
